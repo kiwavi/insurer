@@ -191,6 +191,7 @@ server.post(
             name,
             email,
             password_hash,
+            activated: true,
           })
           .returning();
       });
@@ -422,6 +423,196 @@ server.post(
           status: "active",
         });
       }
+    } catch (e) {
+      console.log(e);
+      return reply
+        .code(500)
+        .send({ success: false, message: "Internal server error" });
+    }
+  },
+);
+
+server.put(
+  "/auth/login",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          email: { type: "string" },
+          phone_number: { type: "string" },
+          password: { type: "string" },
+        },
+        required: ["password"],
+        anyOf: [{ required: ["email"] }, { required: ["phone_number"] }],
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+            status: { type: "string" },
+            token: { type: "string" },
+            data: {
+              type: "object",
+              properties: {
+                id: { type: "number" },
+                email: { type: ["string", "null"] },
+                activated: { type: "boolean" },
+                deleted_at: { type: ["string", "null"] },
+
+                phone_number: { type: ["string", "null"] },
+              },
+              required: ["id", "activated"],
+            },
+          },
+          required: ["success", "message", "status", "token", "data"],
+        },
+        404: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+        401: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+        409: {
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                success: { type: "boolean" },
+                message: { type: "string" },
+              },
+              required: ["success", "message"],
+            },
+            {
+              type: "object",
+              properties: {
+                success: { type: "boolean" },
+                message: { type: "string" },
+                status: { type: "string" },
+                token: { type: "string" },
+              },
+              required: ["success", "message", "status", "token"],
+            },
+          ],
+        },
+        500: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+      },
+    },
+  },
+  async (request, reply) => {
+    try {
+      let { phone_number, email, password } = request.body as {
+        phone_number: string | null;
+        email: string | null;
+        password: string;
+      };
+
+      let user: {
+        id: number;
+        email: string;
+        activated: boolean;
+        deleted_at: Date | null;
+        phone_number: string | null;
+        password_hash: string | null;
+      }[] = [];
+
+      if (phone_number) {
+        phone_number = Format_phone_number(phone_number) as string;
+        user = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            activated: users.activated,
+            deleted_at: users.deleted_at,
+            phone_number: users.phone_number,
+            password_hash: users.password_hash,
+          })
+          .from(users)
+          .where(eq(users.phone_number, phone_number))
+          .limit(1);
+      }
+
+      if (email) {
+        user = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            activated: users.activated,
+            deleted_at: users.deleted_at,
+            phone_number: users.phone_number,
+            password_hash: users.password_hash,
+          })
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+      }
+
+      if (!user?.length) {
+        return reply
+          .code(404)
+          .send({ success: false, message: "User not found" });
+      }
+
+      if (!user[0]?.activated) {
+        return reply
+          .code(409)
+          .send({ success: false, message: "Signup process not finished" });
+      }
+
+      if (user[0]?.deleted_at) {
+        return reply.code(409).send({
+          success: false,
+          message: "Account exists but is deactivated.",
+        });
+      }
+
+      // validate password
+      try {
+        if (!(await argon2.verify(user[0].password_hash as string, password))) {
+          // password does not match
+          return reply.code(401).send({
+            success: false,
+            message: "Invalid credentials.",
+          });
+        }
+      } catch (err) {
+        return reply.code(500).send({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+
+      let token = await signJwt({
+        user_id: user[0].id,
+        jti: uuidv4(),
+      });
+
+      return reply.code(200).send({
+        success: true,
+        message: "Success",
+        data: user[0],
+        status: "active",
+        token,
+      });
     } catch (e) {
       console.log(e);
       return reply
