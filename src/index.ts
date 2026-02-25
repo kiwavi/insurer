@@ -8,6 +8,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, or } from "drizzle-orm";
 import * as argon2 from "argon2";
 import { Format_phone_number } from "./utils/authentication";
+import "dotenv/config";
 
 export const db = drizzle(process.env.DATABASE_URL!);
 
@@ -55,14 +56,13 @@ server.post(
         properties: {
           name: { type: "string" },
           email: { type: "string", format: "email" },
-          role: { type: "integer" },
           password: { type: "string", minLength: 8 },
           phone_number: {
             type: "string",
             pattern: "^(\\+254|0)(1|7)[0-9]{8}$",
           },
         },
-        required: ["name", "phone_number", "password", "role", "email"],
+        required: ["name", "phone_number", "password", "email"],
       },
       response: {
         202: {
@@ -119,10 +119,9 @@ server.post(
   async (request, reply) => {
     try {
       // type assertion because req.body is usually unknown
-      let { name, email, role, password, phone_number } = request.body as {
+      let { name, email, password, phone_number } = request.body as {
         name: string;
         email: string;
-        role: number;
         password: string;
         phone_number: string;
       };
