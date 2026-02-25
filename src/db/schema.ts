@@ -194,8 +194,8 @@ export const claims = pgTable("claims", {
 
 export const claimsRelations = relations(claims, ({ one }) => ({
   procedure: one(procedures, {
-    fields: [claims.procedure_id], // the foreign key in claims
-    references: [procedures.id], // the primary key in procedures
+    fields: [claims.procedure_id],
+    references: [procedures.id],
   }),
   member: one(members, {
     fields: [claims.member_id],
