@@ -11,6 +11,7 @@ import {
   index,
   numeric,
   uuid,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import { isNull, relations, sql } from "drizzle-orm";
 
@@ -78,11 +79,12 @@ export const members = pgTable("members", {
   deleted_at: timestamp("deleted_at"),
 });
 
-export const membersRelations = relations(members, ({ one }) => ({
+export const membersRelations = relations(members, ({ one, many }) => ({
   plan: one(plans, {
     fields: [members.plan_id],
     references: [plans.id],
   }),
+  claims: many(claims),
 }));
 
 export const benefits = pgTable("benefits", {
@@ -158,9 +160,19 @@ export const proceduresRelations = relations(procedures, ({ one, many }) => ({
   claims: many(claims),
 }));
 
+export const claimsStatusEnums = pgEnum("claims_status", [
+  "APPROVED",
+  "PARTIAL",
+  "REJECTED",
+]);
+
 export const claims = pgTable("claims", {
   id: integer().primaryKey().generatedByDefaultAsIdentity(),
   claim_id: uuid().defaultRandom(),
+  member_id: integer()
+    .notNull()
+    .references(() => members.id)
+    .notNull(),
   claim_amount: numeric().notNull(),
   procedure_id: integer()
     .notNull()
@@ -169,6 +181,7 @@ export const claims = pgTable("claims", {
   diagnosis_code: varchar({ length: 255 }).notNull().unique(),
   fraud_flag: boolean().default(false).notNull(),
   approved_amount: numeric(),
+  status: claimsStatusEnums(),
   created_at: timestamp()
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -183,5 +196,9 @@ export const claimsRelations = relations(claims, ({ one }) => ({
   procedure: one(procedures, {
     fields: [claims.procedure_id], // the foreign key in claims
     references: [procedures.id], // the primary key in procedures
+  }),
+  member: one(members, {
+    fields: [claims.member_id],
+    references: [members.id],
   }),
 }));
