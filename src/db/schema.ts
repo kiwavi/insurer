@@ -10,6 +10,7 @@ import {
   doublePrecision,
   index,
   numeric,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { isNull, relations, sql } from "drizzle-orm";
 
@@ -149,9 +150,37 @@ export const procedures = pgTable("procedures", {
   deleted_at: timestamp("deleted_at"),
 });
 
-export const proceduresRelations = relations(procedures, ({ one }) => ({
+export const proceduresRelations = relations(procedures, ({ one, many }) => ({
   benefit: one(benefits, {
     fields: [procedures.benefit_id],
     references: [benefits.id],
+  }),
+  claims: many(claims),
+}));
+
+export const claims = pgTable("claims", {
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  claim_id: uuid().defaultRandom(),
+  claim_amount: numeric(),
+  procedure_id: integer()
+    .notNull()
+    .references(() => procedures.id),
+  diagnosis_code: varchar({ length: 255 }).notNull().unique(),
+  fraud_flag: boolean().default(false).notNull(),
+  approved_amount: numeric(),
+  created_at: timestamp()
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updated_at: timestamp("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`)
+    .$onUpdate(() => sql`CURRENT_TIMESTAMP`),
+  deleted_at: timestamp("deleted_at"),
+});
+
+export const claimsRelations = relations(claims, ({ one }) => ({
+  procedure: one(procedures, {
+    fields: [claims.procedure_id], // the foreign key in claims
+    references: [procedures.id], // the primary key in procedures
   }),
 }));
