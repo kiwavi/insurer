@@ -7,8 +7,13 @@ import { users } from "./db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, or } from "drizzle-orm";
 import * as argon2 from "argon2";
-import { Format_phone_number } from "./utils/authentication";
+import {
+  Format_phone_number,
+  signJwt,
+  verifyGoogleToken,
+} from "./utils/authentication";
 import "dotenv/config";
+import { v4 as uuidv4 } from "uuid";
 
 export const db = drizzle(process.env.DATABASE_URL!);
 
@@ -193,6 +198,230 @@ server.post(
       return reply
         .code(202)
         .send({ success: true, message: "User created successfully" });
+    } catch (e) {
+      console.log(e);
+      return reply
+        .code(500)
+        .send({ success: false, message: "Internal server error" });
+    }
+  },
+);
+
+server.post(
+  "/auth/google",
+  {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          idToken: { type: "string" },
+        },
+        required: ["idToken"],
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            message: { type: "string" },
+            status: { type: "string" },
+            data: {
+              type: "object",
+              properties: {
+                id: { type: "number" },
+                email: { type: "string", format: "email" },
+                activated: { type: "boolean" },
+                deleted_at: { type: ["string", "null"], format: "date-time" },
+                phone_number: { type: "string" },
+              },
+              required: ["id", "email", "activated"],
+            },
+          },
+        },
+        202: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+          },
+        },
+        409: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+            token: {
+              type: "string",
+            },
+          },
+        },
+        500: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+          },
+        },
+        400: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+          },
+        },
+        401: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+          },
+        },
+        404: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+          },
+        },
+        201: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+            },
+            message: {
+              type: "string",
+            },
+            status: {
+              type: "string",
+            },
+          },
+        },
+      },
+    },
+  },
+  async (request, reply) => {
+    try {
+      let { idToken, role_id } = request.body as {
+        idToken: string;
+        role_id: number;
+      };
+
+      let user;
+
+      try {
+        user = await verifyGoogleToken(idToken);
+      } catch (e) {
+        request.log.error(e);
+        return reply
+          .status(401)
+          .send({ success: false, message: "Invalid Google token" });
+      }
+
+      const { email, name } = user as { name: string; email: string };
+
+      // fetch user from db.
+      let fetchUser = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          activated: users.activated,
+          deleted_at: users.deleted_at,
+          phone_number: users.phone_number,
+        })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (fetchUser?.length) {
+        // already exists. check that they can proceed with login
+        if (!fetchUser[0].activated && !fetchUser[0].deleted_at) {
+          // user exists but is not activated, return details and tell them. Esp if they signed up manually and now they are using the email to login. Means the number should be verified.
+          return reply
+            .code(409)
+            .send({ success: false, message: "Signup process not finished" });
+        }
+
+        if (fetchUser[0].deleted_at) {
+          // user exists (phone number or email) and is deactivated
+          return reply.code(409).send({
+            success: false,
+            message: `Account with this email exists but is deactivated`,
+          });
+        }
+
+        let token = await signJwt({
+          user_id: fetchUser[0].id,
+          jti: uuidv4(),
+        });
+
+        return reply.code(200).send({
+          success: true,
+          message: "Success",
+          data: fetchUser[0],
+          status: "active",
+          token,
+        });
+
+        // return user
+      } else {
+        let createUser: {
+          name: string;
+          id: number;
+          email: string;
+          phone_number: string | null;
+          activated: boolean;
+          created_at: Date;
+          updated_at: Date;
+          deleted_at: Date | null;
+          password_hash: string | null;
+          hashed_verification_code: number | null;
+
+          profile_picture: string | null;
+        }[];
+
+        // user does not exist. Create one
+        await db.transaction(async (tx) => {
+          createUser = await tx
+            .insert(users)
+            .values({
+              name,
+              email,
+              activated: true,
+            })
+            .returning();
+        });
+
+        return reply.code(201).send({
+          success: true,
+          message: `Account created successfully and can now login`,
+          status: "active",
+        });
+      }
     } catch (e) {
       console.log(e);
       return reply
