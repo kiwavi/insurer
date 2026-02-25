@@ -161,10 +161,11 @@ export const proceduresRelations = relations(procedures, ({ one, many }) => ({
 export const claims = pgTable("claims", {
   id: integer().primaryKey().generatedByDefaultAsIdentity(),
   claim_id: uuid().defaultRandom(),
-  claim_amount: numeric(),
+  claim_amount: numeric().notNull(),
   procedure_id: integer()
     .notNull()
-    .references(() => procedures.id),
+    .references(() => procedures.id)
+    .notNull(),
   diagnosis_code: varchar({ length: 255 }).notNull().unique(),
   fraud_flag: boolean().default(false).notNull(),
   approved_amount: numeric(),
