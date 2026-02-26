@@ -639,13 +639,13 @@ server.post(
           member_id: { type: "integer" },
           claim_amount: { type: "integer" },
           procedure_code: { type: "string" },
-          diagnosis_code: { type: "string" },
+          // diagnosis_code: { type: "string" },
         },
         required: [
           "member_id",
           "claim_amount",
           "procedure_code",
-          "diagnosis_code",
+          // "diagnosis_code",
         ],
       },
       response: {
@@ -683,13 +683,11 @@ server.post(
   },
   async (request, reply) => {
     try {
-      let { member_id, claim_amount, procedure_code, diagnosis_code } =
-        request.body as {
-          member_id: number;
-          claim_amount: number;
-          procedure_code: string;
-          diagnosis_code: string;
-        };
+      let { member_id, claim_amount, procedure_code } = request.body as {
+        member_id: number;
+        claim_amount: number;
+        procedure_code: string;
+      };
 
       await db.transaction(async (tx) => {
         // find member
@@ -746,7 +744,6 @@ server.post(
             member_id: member_id,
             claim_amount: claim_amount.toString(),
             procedure_id: procedure.id,
-            diagnosis_code: "",
             fraud_flag,
             approved_amount: amount_approved?.toString() ?? null,
             status: claimStatus,

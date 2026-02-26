@@ -179,7 +179,7 @@ export const claims = pgTable("claims", {
     .notNull()
     .references(() => procedures.id)
     .notNull(),
-  diagnosis_code: varchar({ length: 255 }).notNull().unique(),
+  // diagnosis_code: varchar({ length: 255 }).notNull().unique(),
   fraud_flag: boolean().default(false).notNull(),
   approved_amount: numeric(),
   status: claimsStatusEnums(),
