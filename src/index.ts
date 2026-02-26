@@ -844,9 +844,8 @@ server.get(
 
 const start = async () => {
   try {
-    await server.listen({ port: 3094 });
+    await server.listen({ port: Number(process.env.PORT) });
     const address = server.server.address();
-    const port = typeof address === "string" ? address : address?.port;
   } catch (e) {
     server.log.error(e);
     process.exit(1);
