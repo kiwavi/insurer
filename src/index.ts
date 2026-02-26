@@ -832,9 +832,7 @@ server.get(
           .send({ success: false, message: "Claim not found" });
       }
 
-      return reply.code(200).send({
-        claim,
-      });
+      return reply.code(200).send(claim);
     } catch (e) {
       console.log(e);
       return reply
