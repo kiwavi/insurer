@@ -20,7 +20,6 @@ import { claimsStatusEnums } from "./db/schema";
 
 export const db = drizzle(process.env.DATABASE_URL!);
 type ClaimsStatus = (typeof claimsStatusEnums.enumValues)[number];
-const claimStatus = status as ClaimsStatus;
 
 await server.register(swagger, {
   openapi: {
@@ -739,6 +738,8 @@ server.post(
 
         let fraud_flag: boolean = await calculateFraud(claim_amount, procedure);
 
+        const claimStatus = status as ClaimsStatus;
+
         let [claim] = await tx
           .insert(claims)
           .values({
@@ -758,6 +759,84 @@ server.post(
           fraud_flag: claim.fraud_flag,
           approved_amount: claim.approved_amount,
         });
+      });
+    } catch (e) {
+      console.log(e);
+      return reply
+        .code(500)
+        .send({ success: false, message: "Internal server error" });
+    }
+  },
+);
+
+server.get(
+  "/claims/:id",
+  {
+    preHandler: userLoggedMiddleware,
+    schema: {
+      summary: "Get A Claim",
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", format: "uuid" }, // validates that the param is a UUID
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            claim: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                status: {
+                  type: "string",
+                  enum: ["APPROVED", "PARTIAL", "REJECTED"], // match your enum values
+                },
+              },
+              required: ["id", "status"],
+            },
+          },
+          required: ["claim"],
+        },
+        404: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", const: false },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+        500: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", const: false },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+      },
+    },
+  },
+  async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+
+      let [claim] = await db
+        .select({ id: claims.claim_id, status: claims.status })
+        .from(claims)
+        .where(eq(claims.claim_id, id));
+
+      if (!claim) {
+        return reply
+          .code(404)
+          .send({ success: false, message: "Claim not found" });
+      }
+
+      return reply.code(200).send({
+        claim,
       });
     } catch (e) {
       console.log(e);
