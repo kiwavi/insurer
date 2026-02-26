@@ -21,3 +21,16 @@
 * Dockerize the application
 
 ## How to run it locally
+* `npm install`
+* Create a .env file in the root folder with the following variables
++ `DATABASE_URL=postgresql://postgres:postgres@localhost:{{LOCAL_PORT}}/{{DB_NAME}}?schema=public`
++ `GOOGLE_CLIENT_ID=""`
++ `GOOGLE_CLIENT_SECRET=""`
++ `JWT_SIGN_PRIVATE_KEY=""`
++ `PORT={{PORT}}`
+
+* Generate drizzle schema `npx drizzle-kit generate`
+* Migrate drizzle schema `npx drizzle-kit migrate`
+
+* Start the app
+`npm start`
