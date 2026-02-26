@@ -35,4 +35,4 @@
 * Start the app
 `npm start`
 
-* Access the localhost and use the port set in the env variable to access the swagger documentation. For example if port us 3094 and locahlost is 127.0.0.1, access through `http://127.0.0.1:3094/docs`
+* Access the localhost and use the port set in the env variable to access the swagger documentation. For example if port is 3094 and locahlost is 127.0.0.1, access through `http://127.0.0.1:3094/docs`
