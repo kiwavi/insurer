@@ -3,7 +3,7 @@ const server: FastifyInstance = Fastify({ logger: true });
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import multipart from "@fastify/multipart";
-import { users } from "./db/schema";
+import { members, procedures, users } from "./db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, or } from "drizzle-orm";
 import * as argon2 from "argon2";
@@ -14,6 +14,8 @@ import {
 } from "./utils/authentication";
 import "dotenv/config";
 import { v4 as uuidv4 } from "uuid";
+import { userLoggedMiddleware } from "./middleware/auth";
+import { calculateBenefitLimit } from "./utils/claims";
 
 export const db = drizzle(process.env.DATABASE_URL!);
 
@@ -612,6 +614,95 @@ server.put(
         data: user[0],
         status: "active",
         token,
+      });
+    } catch (e) {
+      console.log(e);
+      return reply
+        .code(500)
+        .send({ success: false, message: "Internal server error" });
+    }
+  },
+);
+
+server.post(
+  "/claims",
+  {
+    preHandler: userLoggedMiddleware,
+    schema: {
+      summary: "Post A Claim",
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: "object",
+        properties: {
+          member_id: { type: "integer" },
+          claim_amount: { type: "integer" },
+          procedure_code: { type: "string" },
+          diagnosis_code: { type: "string" },
+        },
+        required: [
+          "member_id",
+          "claim_amount",
+          "procedure_code",
+          "diagnosis_code",
+        ],
+      },
+    },
+  },
+  async (request, reply) => {
+    try {
+      let { member_id, claim_amount, procedure_code, diagnosis_code } =
+        request.body as {
+          member_id: number;
+          claim_amount: number;
+          procedure_code: string;
+          diagnosis_code: string;
+        };
+
+      await db.transaction(async (tx) => {
+        // find member
+        let [member] = await tx
+          .select({
+            id: members.id,
+            active: members.active,
+            plan_id: members.plan_id,
+          })
+          .from(members)
+          .where(eq(members.id, member_id))
+          .for("update")
+          .limit(1);
+
+        if (!member) {
+          return reply
+            .code(404)
+            .send({ success: false, message: "Member not found" });
+        }
+
+        // validate eligibility
+        if (!member.active) {
+          return reply
+            .code(404)
+            .send({ success: false, message: "Member is inactive." });
+        }
+
+        // validate procedure code
+        let [procedure] = await db
+          .select()
+          .from(procedures)
+          .where(eq(procedures.code, procedure_code));
+
+        if (!procedure) {
+          return reply
+            .code(404)
+            .send({ success: false, message: "Procedure not found" });
+        }
+
+        // benefit coverage check.
+        let { status: string, amount_approved: number } =
+          await calculateBenefitLimit(
+            member.plan_id,
+            claim_amount,
+            procedure.benefit_id,
+          );
       });
     } catch (e) {
       console.log(e);
