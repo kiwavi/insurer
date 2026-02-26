@@ -18,5 +18,6 @@
 * The database would have targeted indexes and optimized for scale.
 * Tests. End to end testing.
 * Do proper logging. Use a SAAS like logzio to manage logging.
+* Dockerize the application
 
 ## How to run it locally
