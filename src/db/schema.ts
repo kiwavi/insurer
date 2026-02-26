@@ -142,6 +142,7 @@ export const procedures = pgTable("procedures", {
   benefit_id: integer()
     .notNull()
     .references(() => benefits.id),
+  average_cost: numeric(),
   created_at: timestamp()
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
