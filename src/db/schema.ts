@@ -142,6 +142,7 @@ export const procedures = pgTable("procedures", {
   benefit_id: integer()
     .notNull()
     .references(() => benefits.id),
+  average_cost: numeric().notNull(),
   created_at: timestamp()
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -178,7 +179,7 @@ export const claims = pgTable("claims", {
     .notNull()
     .references(() => procedures.id)
     .notNull(),
-  diagnosis_code: varchar({ length: 255 }).notNull().unique(),
+  // diagnosis_code: varchar({ length: 255 }).notNull().unique(),
   fraud_flag: boolean().default(false).notNull(),
   approved_amount: numeric(),
   status: claimsStatusEnums(),
