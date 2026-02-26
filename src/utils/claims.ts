@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "..";
 import { benefits, plans_benefits, procedures } from "../db/schema";
 import { HttpError } from "./error";
+import { integer } from "drizzle-orm/pg-core";
 
 export async function calculateBenefitLimit(
   plan_id: number,
@@ -45,4 +46,22 @@ export async function calculateBenefitLimit(
   }
 
   return { status, amount_approved };
+}
+
+export async function calculateFraud(
+  claim_amount: number,
+  procedure: {
+    id: number;
+    code: string;
+    benefit_id: number;
+    average_cost: string | null;
+    created_at: Date;
+    updated_at: Date;
+    deleted_at: Date | null;
+  },
+) {
+  if (claim_amount > Number(procedure.average_cost) * 2) {
+    return true;
+  }
+  return false;
 }

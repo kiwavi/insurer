@@ -3,7 +3,7 @@ const server: FastifyInstance = Fastify({ logger: true });
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import multipart from "@fastify/multipart";
-import { members, procedures, users } from "./db/schema";
+import { claims, members, procedures, users } from "./db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, or } from "drizzle-orm";
 import * as argon2 from "argon2";
@@ -15,9 +15,12 @@ import {
 import "dotenv/config";
 import { v4 as uuidv4 } from "uuid";
 import { userLoggedMiddleware } from "./middleware/auth";
-import { calculateBenefitLimit } from "./utils/claims";
+import { calculateBenefitLimit, calculateFraud } from "./utils/claims";
+import { claimsStatusEnums } from "./db/schema";
 
 export const db = drizzle(process.env.DATABASE_URL!);
+type ClaimsStatus = (typeof claimsStatusEnums.enumValues)[number];
+const claimStatus = status as ClaimsStatus;
 
 await server.register(swagger, {
   openapi: {
@@ -697,12 +700,33 @@ server.post(
         }
 
         // benefit coverage check.
-        let { status: string, amount_approved: number } =
-          await calculateBenefitLimit(
-            member.plan_id,
-            claim_amount,
-            procedure.benefit_id,
-          );
+        let { status, amount_approved } = await calculateBenefitLimit(
+          member.plan_id,
+          claim_amount,
+          procedure.benefit_id,
+        );
+
+        let fraud_flag: boolean = await calculateFraud(claim_amount, procedure);
+
+        let [claim] = await tx
+          .insert(claims)
+          .values({
+            member_id: member_id,
+            claim_amount: claim_amount.toString(),
+            procedure_id: procedure.id,
+            diagnosis_code: "",
+            fraud_flag,
+            approved_amount: amount_approved?.toString() ?? null,
+            status: claimStatus,
+          })
+          .returning();
+
+        return reply.code(200).send({
+          claim_id: claim.claim_id,
+          status: claim.status,
+          fraud_flag: claim.fraud_flag,
+          approved_amount: claim.approved_amount,
+        });
       });
     } catch (e) {
       console.log(e);
