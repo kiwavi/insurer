@@ -649,6 +649,37 @@ server.post(
           "diagnosis_code",
         ],
       },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            claim_id: { type: "string", format: "uuid" },
+            status: {
+              type: "string",
+              enum: ["APPROVED", "PARTIAL", "REJECTED"],
+            },
+            fraud_flag: { type: "boolean" },
+            approved_amount: { type: "number" },
+          },
+          required: ["claim_id", "status", "fraud_flag", "approved_amount"],
+        },
+        404: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", const: false },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+        500: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", const: false },
+            message: { type: "string" },
+          },
+          required: ["success", "message"],
+        },
+      },
     },
   },
   async (request, reply) => {
